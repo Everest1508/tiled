@@ -17,6 +17,8 @@ async function errorText(res: Response): Promise<string> {
 }
 
 function toOpenAiContent(content: ContentBlock[]) {
+  // Text-only models (and some servers) reject a list of parts, so plain text goes as a plain string.
+  if (content.every((b) => b.type === "text")) return content.map((b) => (b as { text: string }).text).join("\n\n");
   return content.map((b) =>
     b.type === "text"
       ? { type: "text", text: b.text }

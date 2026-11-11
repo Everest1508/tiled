@@ -164,6 +164,12 @@ describe("other AI services", () => {
     expect(payload.messages[0]).toEqual({ role: "system", content: "sys" });
     expect(payload.messages[1].content[1]).toEqual({ type: "image_url", image_url: { url: "data:image/png;base64,QQ==" } });
   });
+  it("sends text-only prompts as a plain string", async () => {
+    let init: any;
+    const fetchImpl = (async (_u: string, i: any) => { init = i; return new Response(body(), { status: 200 }); }) as any;
+    await streamChat({ settings: { provider: "groq", apiKey: "k", model: "m", baseUrl: "https://x/v1" }, system: "s", content: [{ type: "text", text: "a" }, { type: "text", text: "b" }], maxTokens: 5, fetchImpl });
+    expect(JSON.parse(init.body).messages[1].content).toBe("a\n\nb");
+  });
   it("uses max_completion_tokens for OpenAI", async () => {
     const { payload } = await run("openai");
     expect(payload.max_completion_tokens).toBe(123);

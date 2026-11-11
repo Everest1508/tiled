@@ -344,7 +344,6 @@ function Detail({ ts }: { ts: Tileset }) {
 export default function SheetsPanel() {
   const tilesets = useStore((s) => s.tilesets);
   const activeId = useStore((s) => s.activeTilesetId);
-  const fileRef = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
   const active = tilesets.find((t) => t.id === activeId) ?? tilesets[0];
 
@@ -360,14 +359,14 @@ export default function SheetsPanel() {
       onDragLeave={() => setOver(false)}
       onDrop={(e) => { e.preventDefault(); setOver(false); pick(e.dataTransfer.files); }}
     >
-      <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => { pick(e.target.files); e.target.value = ""; }} />
+      <input id="sheet-file" type="file" accept="image/*" multiple className="file-hidden" onChange={(e) => { pick(e.target.files); e.target.value = ""; }} />
 
       {tilesets.length === 0 ? (
-        <button className="dropzone" onClick={() => fileRef.current?.click()}>
+        <label className="dropzone" htmlFor="sheet-file">
           <span className="dz-icon"><Icon name="upload" size={28} /></span>
           <strong>Add your tilesheets</strong>
           <span>Drop PNG images here or tap to browse. You can add as many sheets as you like.</span>
-        </button>
+        </label>
       ) : (
         <>
           <div className="sheet-tabs" role="tablist">
@@ -376,7 +375,7 @@ export default function SheetsPanel() {
                 {t.name}
               </button>
             ))}
-            <button className="tab add" onClick={() => fileRef.current?.click()} aria-label="Add tilesheet"><Icon name="plus" size={16} /></button>
+            <label className="tab add" htmlFor="sheet-file" aria-label="Add tilesheet"><Icon name="plus" size={16} /></label>
           </div>
           {active && <Detail ts={active} />}
         </>

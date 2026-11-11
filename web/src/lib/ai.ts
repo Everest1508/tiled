@@ -25,7 +25,8 @@ async function run<T>(label: string, job: (signal: AbortSignal, progress: (chars
   } catch (e) {
     if ((e as Error).name === "AbortError") notify("Cancelled.");
     else {
-      const msg = (e as Error).message || "Something went wrong.";
+      let msg = (e as Error).message || "Something went wrong.";
+      if (/must be a string|image|vision|multimodal/i.test(msg) && label.includes("studying")) msg += " This model may not accept images. Choose a vision model in Settings.";
       notify(msg, "error");
       if (/API key|model in Settings|base URL in Settings/i.test(msg)) setState({ settingsOpen: true });
     }
