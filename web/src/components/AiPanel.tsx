@@ -194,7 +194,8 @@ function Refine() {
 
 export default function AiPanel() {
   const tab = useStore((s) => s.aiTab);
-  const hasKey = useStore((s) => !!s.settings.apiKey.trim());
+  const hasKey = useStore((s) => (s.settings.provider === "bridge" ? s.bridge === "connected" : !!s.settings.apiKey.trim()));
+  const viaBridge = useStore((s) => s.settings.provider === "bridge");
   const tabs: { id: AiTab; label: string }[] = [
     { id: "generate", label: "Generate" },
     { id: "area", label: "Area" },
@@ -206,10 +207,10 @@ export default function AiPanel() {
         <div className="connect-banner">
           <Icon name="key" size={18} />
           <div>
-            <strong>Connect your Claude API key</strong>
-            <p>Needed for naming tiles and generating maps.</p>
+            <strong>{viaBridge ? "Claude Code is not connected" : "Connect your Claude API key"}</strong>
+            <p>{viaBridge ? "Start Claude Code with the tile-studio server." : "Needed for naming tiles and generating maps."}</p>
           </div>
-          <button className="btn primary sm" onClick={() => setState({ settingsOpen: true })}>Connect</button>
+          <button className="btn primary sm" onClick={() => setState({ settingsOpen: true })}>{viaBridge ? "Help" : "Connect"}</button>
         </div>
       )}
       <div className="seg wide">

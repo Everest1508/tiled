@@ -20,7 +20,12 @@ export interface Brush {
 
 export interface Settings extends ClaudeSettings {
   remember: boolean;
+  /** "api" calls Claude directly with a key; "bridge" hands work to Claude Code through the local MCP bridge. */
+  provider: "api" | "bridge";
+  bridgeUrl: string;
 }
+
+export type BridgeStatus = "off" | "connecting" | "connected" | "error";
 
 export interface Toast {
   id: number;
@@ -45,6 +50,7 @@ export interface State {
   variants: Variant[];
   selVariant: number;
   settings: Settings;
+  bridge: BridgeStatus;
   settingsOpen: boolean;
   busy: { label: string; chars: number } | null;
   toast: Toast | null;
@@ -57,7 +63,7 @@ const SETTINGS_KEY = "tms.settings.v1";
 const THEME_KEY = "tms.theme";
 
 function loadSettings(): Settings {
-  const base: Settings = { apiKey: "", model: MODELS[0].id, baseUrl: DEFAULT_BASE_URL, remember: false };
+  const base: Settings = { apiKey: "", model: MODELS[0].id, baseUrl: DEFAULT_BASE_URL, remember: false, provider: "api", bridgeUrl: "http://127.0.0.1:8787" };
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (raw) return { ...base, ...JSON.parse(raw) };
@@ -94,6 +100,7 @@ let state: State = {
   variants: [],
   selVariant: -1,
   settings: loadSettings(),
+  bridge: "off",
   settingsOpen: false,
   busy: null,
   toast: null,
@@ -108,6 +115,11 @@ export const getState = () => state;
 export function setState(patch: Partial<State>) {
   state = { ...state, ...patch };
   listeners.forEach((l) => l());
+}
+
+export function subscribe(fn: () => void) {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
 }
 
 export function useStore<T>(selector: (s: State) => T): T {

@@ -8,7 +8,8 @@ export default function Header() {
   const canUndo = useStore((s) => s.history.length > 0);
   const canRedo = useStore((s) => s.future.length > 0);
   const theme = useStore((s) => s.theme);
-  const hasKey = useStore((s) => !!s.settings.apiKey.trim());
+  const hasKey = useStore((s) => (s.settings.provider === "bridge" ? s.bridge === "connected" : !!s.settings.apiKey.trim()));
+  const viaBridge = useStore((s) => s.settings.provider === "bridge");
   const hasSheets = useStore((s) => s.tilesets.length > 0);
   const [menu, setMenu] = useState(false);
   const openRef = useRef<HTMLInputElement>(null);
@@ -68,7 +69,7 @@ export default function Header() {
         <button className={`btn ${hasKey ? "ghost" : "primary"} connect`} onClick={() => setState({ settingsOpen: true })}>
           <span className={`dot ${hasKey ? "on" : ""}`} />
           <Icon name="key" size={16} />
-          <span className="hide-sm">{hasKey ? "Claude connected" : "Connect Claude"}</span>
+          <span className="hide-sm">{hasKey ? (viaBridge ? "Claude Code connected" : "Claude connected") : viaBridge ? "Claude Code offline" : "Connect Claude"}</span>
         </button>
       </div>
     </header>

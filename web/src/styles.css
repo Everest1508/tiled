@@ -194,3 +194,7 @@ input.strong { font-weight: 700; }
   .btn { padding: 0 12px; }
 }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+.bridge-steps { margin: 4px 0 12px; padding-left: 22px; display: grid; gap: 10px; font-size: 14px; line-height: 1.5; list-style: decimal; }
+.bridge-steps li { display: list-item; min-width: 0; overflow-wrap: anywhere; }
+.bridge-steps code { display: inline; padding: 2px 6px; border-radius: 6px; background: rgba(127,127,127,.16); font-size: 12.5px; user-select: all; white-space: normal; }

@@ -81,7 +81,7 @@ export function generationPrompt(cat: Catalog, description: string, w: number, h
   return `${cat.text}\nMAP SIZE: ${w} columns x ${h} rows (every layer must have ${h} rows of ${w} characters).\n\nMAP DESCRIPTION: ${description}`;
 }
 
-function layerRows(map: MapData, cat: Catalog, area: Rect) {
+export function layerRows(map: MapData, cat: Catalog, area: Rect) {
   let out = "";
   for (const l of map.layers) {
     out += `\nLAYER "${l.name}":\n`;

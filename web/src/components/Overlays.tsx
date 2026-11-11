@@ -15,13 +15,16 @@ export function Toasts() {
 
 export function BusyBar() {
   const busy = useStore((s) => s.busy);
+  const bridge = useStore((s) => s.settings.provider === "bridge");
   if (!busy) return null;
   return (
     <div className="busybar" role="status" aria-live="polite">
       <span className="spinner" aria-hidden="true" />
       <div className="busytext">
         <strong>{busy.label}</strong>
-        <small>{busy.chars > 0 ? `${busy.chars.toLocaleString()} characters received` : "Waiting for Claude…"}</small>
+        <small>{bridge
+            ? busy.chars > 0 ? "Claude Code is working on it…" : "In Claude Code, run /tile-studio (or ask it to call next_job)"
+            : busy.chars > 0 ? `${busy.chars.toLocaleString()} characters received` : "Waiting for Claude…"}</small>
       </div>
       <button className="btn ghost sm" onClick={cancelAi}>Cancel</button>
     </div>

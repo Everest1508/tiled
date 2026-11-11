@@ -1,14 +1,17 @@
 import { annotatedTilesetImage, selectionImage } from "./annotate";
 import { buildCatalog, generationPrompt, namingPrompt, normName, refinePrompt, selectionNamePrompt, SYSTEM_MAP, variantsPrompt } from "./catalog";
 import { imageBlock, streamMessage, textBlock } from "./claude";
-import { cloneMap, extractJson, fillLayers, newMap, mapIsEmpty } from "./mapops";
-import { applyNaming, commitMap, getState, notify, setState } from "./store";
-import { gridOf, Rect, Variant } from "./types";
+import { applyGeneratedMap, applyRefinedMap, applyVariantsReply } from "./apply";
+import { runBridgeJob, cancelBridgeJob, usingBridge } from "./bridge";
+import { extractJson } from "./mapops";
+import { applyNaming, getState, notify, setState } from "./store";
+import { gridOf, Rect } from "./types";
 
 let controller: AbortController | null = null;
 
 export function cancelAi() {
   controller?.abort();
+  cancelBridgeJob();
 }
 
 /** Runs an AI job with progress, cancel and error handling. Returns undefined on failure. */
@@ -50,6 +53,18 @@ const needNames = () => {
 export async function nameTilesetWithClaude(tsId: string, hint: string) {
   const ts = getState().tilesets.find((t) => t.id === tsId);
   if (!ts) return;
+  if (usingBridge()) {
+    const { cols, rows, count } = gridOf(ts);
+    const used = getState().tilesets.filter((t) => t.id !== tsId).flatMap((t) => Object.values(t.names));
+    await runBridgeJob({
+      type: "name_tileset",
+      label: `Claude Code is studying "${ts.name}"…`,
+      prompt: namingPrompt(ts, cols, rows, count, hint, used),
+      image: await annotatedTilesetImage(ts),
+      meta: { tileset: ts.name },
+    });
+    return;
+  }
   await run(`Claude is studying "${ts.name}"…`, async (signal, progress) => {
     const { cols, rows, count } = gridOf(ts);
     const used = getState().tilesets.filter((t) => t.id !== tsId).flatMap((t) => Object.values(t.names));
@@ -67,6 +82,10 @@ export async function nameTilesetWithClaude(tsId: string, hint: string) {
 export async function nameSelectionWithClaude(tsId: string, c0: number, r0: number, c1: number, r1: number): Promise<string | undefined> {
   const ts = getState().tilesets.find((t) => t.id === tsId);
   if (!ts) return undefined;
+  if (usingBridge()) {
+    notify("Suggesting a name for a selection needs the API key mode. Type a name, or use Name with Claude for the whole sheet.", "info");
+    return undefined;
+  }
   return run("Claude is looking at your selection…", async (signal, progress) => {
     const image = await selectionImage(ts, c0, r0, c1, r1);
     const text = await ask(
@@ -81,15 +100,14 @@ export async function nameSelectionWithClaude(tsId: string, c0: number, r0: numb
 export async function generateMapWithClaude(description: string, w: number, h: number) {
   const cat = needNames();
   if (!cat) return;
+  if (usingBridge()) {
+    await runBridgeJob({ type: "generate_map", label: `Claude Code is designing a ${w} × ${h} map…`, prompt: `Create a map with set_map using width ${w} and height ${h}.\n\n${generationPrompt(cat, description, w, h)}` });
+    return;
+  }
   await run(`Claude is designing a ${w} × ${h} map…`, async (signal, progress) => {
     const maxTokens = Math.min(32000, 3000 + w * h * 5);
     const text = await ask(SYSTEM_MAP, [textBlock(generationPrompt(cat, description, w, h))], maxTokens, signal, progress);
-    const warnings: string[] = [];
-    const map = fillLayers(newMap(w, h), extractJson(text), cat, warnings);
-    if (!map.layers.length || mapIsEmpty(map)) throw new Error("Claude returned an empty map. Try again or describe it differently.");
-    commitMap(map, map.layers[0].id);
-    setState({ region: null, variants: [], selVariant: -1, panel: "map" });
-    notify(warnings.length ? `Map ready (${warnings.length} small issues, e.g. ${warnings[0]}).` : "Map ready. Draw on it, or select an area to get options.", warnings.length ? "info" : "ok");
+    applyGeneratedMap(extractJson(text), w, h);
   });
 }
 
@@ -97,17 +115,14 @@ export async function generateVariantsWithClaude(description: string, count: num
   const { map, region } = getState();
   const cat = needNames();
   if (!cat || !map || !region) return;
+  if (usingBridge()) {
+    await runBridgeJob({ type: "area_options", label: `Claude Code is designing ${count} options…`, prompt: `Provide exactly ${count} variants with set_area_options.\n\n${variantsPrompt(cat, map, region, description, count)}` });
+    return;
+  }
   await run(`Claude is designing ${count} options…`, async (signal, progress) => {
     const maxTokens = Math.min(32000, 3000 + count * region.w * region.h * 4 * Math.max(1, map.layers.length));
     const text = await ask(SYSTEM_MAP, [textBlock(variantsPrompt(cat, map, region, description, count))], maxTokens, signal, progress);
-    const reply = extractJson(text);
-    const variants: Variant[] = (Array.isArray(reply.variants) ? reply.variants : []).map((v: any, i: number) => ({
-      label: String(v?.label || `Option ${i + 1}`),
-      map: fillLayers(newMap(region.w, region.h), v, cat),
-    }));
-    if (!variants.length) throw new Error("Claude returned no options. Try again.");
-    setState({ variants, selVariant: 0 });
-    notify(`${variants.length} options ready. Tap one to preview it on the map.`, "ok");
+    applyVariantsReply(extractJson(text));
   });
 }
 
@@ -115,24 +130,14 @@ export async function refineMapWithClaude(instruction: string) {
   const { map } = getState();
   const cat = needNames();
   if (!cat || !map) return;
+  if (usingBridge()) {
+    await runBridgeJob({ type: "refine_map", label: "Claude Code is changing the map…", prompt: `Call set_map with width ${map.w} and height ${map.h} and the COMPLETE updated map.\n\n${refinePrompt(cat, map, instruction)}` });
+    return;
+  }
   await run("Claude is changing the map…", async (signal, progress) => {
     const maxTokens = Math.min(32000, 3000 + map.w * map.h * 5);
     const text = await ask(SYSTEM_MAP, [textBlock(refinePrompt(cat, map, instruction))], maxTokens, signal, progress);
-    const warnings: string[] = [];
-    const next = fillLayers(newMap(map.w, map.h), extractJson(text), cat, warnings);
-    if (!next.layers.length || mapIsEmpty(next)) throw new Error("Claude returned an empty map. Try again.");
-    // Keep the editor's layer ids and visibility where names match.
-    const old = cloneMap(map);
-    for (const l of next.layers) {
-      const prev = old.layers.find((o) => o.name === l.name);
-      if (prev) {
-        l.id = prev.id;
-        l.visible = prev.visible;
-      }
-    }
-    commitMap(next);
-    setState({ region: null, variants: [], selVariant: -1 });
-    notify("Map updated. Undo restores the previous version.", "ok");
+    applyRefinedMap(extractJson(text));
   });
 }
 

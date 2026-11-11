@@ -6,12 +6,19 @@ import MapView from "./components/MapView";
 import { BusyBar, Toasts } from "./components/Overlays";
 import SettingsDialog from "./components/SettingsDialog";
 import SheetsPanel from "./components/SheetsPanel";
+import { applyBridgeSettings } from "./lib/bridge";
 import { getState, Panel, redo, setState, undo, useStore } from "./lib/store";
 
 export default function App() {
   const panel = useStore((s) => s.panel);
   const theme = useStore((s) => s.theme);
   const busy = useStore((s) => !!s.busy);
+  const provider = useStore((s) => s.settings.provider);
+  const bridgeUrl = useStore((s) => s.settings.bridgeUrl);
+
+  useEffect(() => {
+    applyBridgeSettings();
+  }, [provider, bridgeUrl]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;

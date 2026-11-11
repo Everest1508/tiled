@@ -26,3 +26,7 @@ npm run build    # output in web/dist
 
 ## Deploy
 The build is static, so any static host works (GitHub Pages, Netlify, Vercel, Cloudflare Pages). The included workflow `.github/workflows/web-pages.yml` builds the site on every push and deploys it to GitHub Pages from `master` once Pages is set to "GitHub Actions" in the repository settings.
+
+## Claude Code mode (no API key)
+
+Settings → Connect Claude → **Claude Code** lets Claude Code on your computer do the work through a local MCP bridge. See [`bridge/README.md`](../bridge/README.md).
