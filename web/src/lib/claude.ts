@@ -2,6 +2,8 @@ export interface ClaudeSettings {
   apiKey: string;
   model: string;
   baseUrl: string;
+  /** Which service the settings belong to. Missing means Claude. */
+  provider?: string;
 }
 
 export type ContentBlock =

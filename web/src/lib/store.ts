@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
-import { ClaudeSettings, DEFAULT_BASE_URL, MODELS } from "./claude";
+import { ClaudeSettings } from "./claude";
+import { normalizeProvider, providerInfo, ProviderId } from "./providers";
 import { cleanComps, normName } from "./catalog";
 import { fromProject, toProject, toTmj, tilesetFileNames } from "./exporters";
 import { loadImage, readFileAsDataUrl } from "./images";
@@ -20,9 +21,17 @@ export interface Brush {
 
 export interface Settings extends ClaudeSettings {
   remember: boolean;
-  /** "api" calls Claude directly with a key; "bridge" hands work to Claude Code through the local MCP bridge. */
-  provider: "api" | "bridge";
+  /** Which AI service is active. "bridge" hands work to Claude Code through the local MCP bridge. */
+  provider: ProviderId;
   bridgeUrl: string;
+  /** Key, model and address remembered for each service the user has set up. */
+  profiles: Partial<Record<ProviderId, Profile>>;
+}
+
+export interface Profile {
+  apiKey: string;
+  model: string;
+  baseUrl: string;
 }
 
 export type BridgeStatus = "off" | "connecting" | "connected" | "error";
@@ -63,10 +72,17 @@ const SETTINGS_KEY = "tms.settings.v1";
 const THEME_KEY = "tms.theme";
 
 function loadSettings(): Settings {
-  const base: Settings = { apiKey: "", model: MODELS[0].id, baseUrl: DEFAULT_BASE_URL, remember: false, provider: "api", bridgeUrl: "http://127.0.0.1:8787" };
+  const d = providerInfo("anthropic");
+  const base: Settings = { apiKey: "", model: d.model, baseUrl: d.baseUrl, remember: false, provider: "anthropic", bridgeUrl: "http://127.0.0.1:8787", profiles: {} };
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
-    if (raw) return { ...base, ...JSON.parse(raw) };
+    if (raw) {
+      const saved = JSON.parse(raw);
+      const merged: Settings = { ...base, ...saved, provider: normalizeProvider(saved.provider), profiles: saved.profiles ?? {} };
+      // Settings saved before multiple providers existed belong to Claude.
+      if (!saved.profiles && merged.provider === "anthropic" && !merged.baseUrl) merged.baseUrl = d.baseUrl;
+      return merged;
+    }
   } catch {
     /* storage unavailable */
   }
@@ -122,6 +138,13 @@ export function subscribe(fn: () => void) {
   return () => listeners.delete(fn);
 }
 
+/** True when the chosen AI service has what it needs to work. */
+export function isConnected(s: State) {
+  const p = s.settings.provider;
+  if (p === "bridge") return s.bridge === "connected";
+  return providerInfo(p).needsKey ? !!s.settings.apiKey.trim() : !!s.settings.model.trim() && !!s.settings.baseUrl.trim();
+}
+
 export function useStore<T>(selector: (s: State) => T): T {
   return useSyncExternalStore(
     (cb) => {
@@ -143,15 +166,34 @@ export function notify(text: string, kind: Toast["kind"] = "info") {
   }, kind === "error" ? 7000 : 3500);
 }
 
-export function setSettings(patch: Partial<Settings>) {
-  const settings = { ...state.settings, ...patch };
-  setState({ settings });
+function persistSettings(settings: Settings) {
   try {
+    // Keys are only written to disk when the user asked to remember them.
+    const profiles = Object.fromEntries(Object.entries(settings.profiles).map(([k, p]) => [k, settings.remember ? p : { ...p!, apiKey: "" }]));
     const { apiKey, ...rest } = settings;
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings.remember ? { ...rest, apiKey } : { ...rest, apiKey: "" }));
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...rest, profiles, apiKey: settings.remember ? apiKey : "" }));
   } catch {
     /* ignore */
   }
+}
+
+export function setSettings(patch: Partial<Settings>) {
+  const settings = { ...state.settings, ...patch };
+  setState({ settings });
+  persistSettings(settings);
+}
+
+/** Switches the active AI service, keeping what was entered for the one being left. */
+export function setProvider(id: ProviderId) {
+  const cur = state.settings;
+  if (cur.provider === id) return;
+  const profiles = { ...cur.profiles };
+  if (providerInfo(cur.provider).format !== "bridge") profiles[cur.provider] = { apiKey: cur.apiKey, model: cur.model, baseUrl: cur.baseUrl };
+  const info = providerInfo(id);
+  const next = profiles[id] ?? { apiKey: "", model: info.model, baseUrl: info.baseUrl };
+  const settings: Settings = { ...cur, provider: id, profiles, ...(info.format === "bridge" ? {} : next) };
+  setState({ settings });
+  persistSettings(settings);
 }
 
 export function setTheme(theme: "dark" | "light") {

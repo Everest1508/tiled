@@ -1,6 +1,7 @@
 import { annotatedTilesetImage, selectionImage } from "./annotate";
 import { buildCatalog, generationPrompt, namingPrompt, normName, refinePrompt, selectionNamePrompt, SYSTEM_MAP, variantsPrompt } from "./catalog";
-import { imageBlock, streamMessage, textBlock } from "./claude";
+import { imageBlock, textBlock } from "./claude";
+import { streamChat } from "./llm";
 import { applyGeneratedMap, applyRefinedMap, applyVariantsReply } from "./apply";
 import { runBridgeJob, cancelBridgeJob, usingBridge } from "./bridge";
 import { extractJson } from "./mapops";
@@ -26,7 +27,7 @@ async function run<T>(label: string, job: (signal: AbortSignal, progress: (chars
     else {
       const msg = (e as Error).message || "Something went wrong.";
       notify(msg, "error");
-      if (/API key/i.test(msg)) setState({ settingsOpen: true });
+      if (/API key|model in Settings|base URL in Settings/i.test(msg)) setState({ settingsOpen: true });
     }
     return undefined;
   } finally {
@@ -35,9 +36,9 @@ async function run<T>(label: string, job: (signal: AbortSignal, progress: (chars
   }
 }
 
-async function ask(system: string, content: Parameters<typeof streamMessage>[0]["content"], maxTokens: number, signal: AbortSignal, progress: (n: number) => void) {
-  const r = await streamMessage({ settings: getState().settings, system, content, maxTokens, signal, onProgress: progress });
-  if (r.stopReason === "max_tokens") throw new Error("The reply was cut off because it was too large. Try a smaller map or area.");
+async function ask(system: string, content: Parameters<typeof streamChat>[0]["content"], maxTokens: number, signal: AbortSignal, progress: (n: number) => void) {
+  const r = await streamChat({ settings: getState().settings, system, content, maxTokens, signal, onProgress: progress });
+  if (r.stopReason === "max_tokens") throw new Error("The reply was cut off because it was too large. Try a smaller map or area, or a model with a larger output limit.");
   return r.text;
 }
 

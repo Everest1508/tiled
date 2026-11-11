@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { generateMapWithClaude, generateVariantsWithClaude, refineMapWithClaude, regionLabel } from "../lib/ai";
 import { buildCatalog } from "../lib/catalog";
 import { renderToCanvas } from "../lib/render";
-import { applySelectedVariant, setState, useStore, AiTab } from "../lib/store";
+import { applySelectedVariant, isConnected, setState, useStore, AiTab } from "../lib/store";
 import Icon from "./Icon";
 
 const SIZES = [
@@ -194,7 +194,7 @@ function Refine() {
 
 export default function AiPanel() {
   const tab = useStore((s) => s.aiTab);
-  const hasKey = useStore((s) => (s.settings.provider === "bridge" ? s.bridge === "connected" : !!s.settings.apiKey.trim()));
+  const hasKey = useStore(isConnected);
   const viaBridge = useStore((s) => s.settings.provider === "bridge");
   const tabs: { id: AiTab; label: string }[] = [
     { id: "generate", label: "Generate" },
@@ -207,8 +207,8 @@ export default function AiPanel() {
         <div className="connect-banner">
           <Icon name="key" size={18} />
           <div>
-            <strong>{viaBridge ? "Claude Code is not connected" : "Connect your Claude API key"}</strong>
-            <p>{viaBridge ? "Start Claude Code with the tile-studio server." : "Needed for naming tiles and generating maps."}</p>
+            <strong>{viaBridge ? "Claude Code is not connected" : "Connect an AI service"}</strong>
+            <p>{viaBridge ? "Start Claude Code with the tile-studio server." : "Add a key for Claude, OpenAI, Groq, Gemini and more."}</p>
           </div>
           <button className="btn primary sm" onClick={() => setState({ settingsOpen: true })}>{viaBridge ? "Help" : "Connect"}</button>
         </div>

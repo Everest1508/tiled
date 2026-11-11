@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { buildCatalog, cleanComps, generationPrompt, normName, variantsPrompt } from "./catalog";
 import { streamMessage, parseSse, imageBlock } from "./claude";
+import { listModels, streamChat } from "./llm";
+import { normalizeProvider } from "./providers";
 import { toTmj, toProject, fromProject } from "./exporters";
 import { applyVariant, extractJson, fillLayers, newMap, previewCell } from "./mapops";
 import { gid, Tileset } from "./types";
@@ -132,5 +134,64 @@ describe("claude client", () => {
   });
   it("converts data URLs to image blocks", () => {
     expect(imageBlock("data:image/png;base64,QQ==")).toEqual({ type: "image", source: { type: "base64", media_type: "image/png", data: "QQ==" } });
+  });
+});
+
+describe("other AI services", () => {
+  const chunks = (parts: string[]) => parts.map((t) => `data: ${JSON.stringify({ choices: [{ delta: { content: t } }] })}\n\n`);
+  const body = (extra = "") => {
+    const enc = new TextEncoder();
+    const all = [...chunks(['{"a"', ":1}"]), `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "length" }] })}\n\n`, "data: [DONE]\n\n", extra];
+    return new ReadableStream<Uint8Array>({ start(c) { all.forEach((x) => c.enqueue(enc.encode(x))); c.close(); } });
+  };
+  const run = async (provider: string, apiKey = "k") => {
+    let url = "", init: any;
+    const fetchImpl = (async (u: string, i: any) => { url = u; init = i; return new Response(body(), { status: 200 }); }) as any;
+    const r = await streamChat({
+      settings: { provider, apiKey, model: "m1", baseUrl: provider === "groq" ? "https://api.groq.com/openai/v1/" : "http://localhost:11434/v1" },
+      system: "sys",
+      content: [{ type: "text", text: "hi" }, imageBlock("data:image/png;base64,QQ==")],
+      maxTokens: 123, fetchImpl,
+    });
+    return { r, url, payload: JSON.parse(init.body), headers: init.headers };
+  };
+  it("streams Chat Completions and maps the length stop reason", async () => {
+    const { r, url, payload, headers } = await run("groq");
+    expect(r).toEqual({ text: '{"a":1}', stopReason: "max_tokens" });
+    expect(url).toBe("https://api.groq.com/openai/v1/chat/completions");
+    expect(headers.authorization).toBe("Bearer k");
+    expect(payload.max_tokens).toBe(123);
+    expect(payload.messages[0]).toEqual({ role: "system", content: "sys" });
+    expect(payload.messages[1].content[1]).toEqual({ type: "image_url", image_url: { url: "data:image/png;base64,QQ==" } });
+  });
+  it("uses max_completion_tokens for OpenAI", async () => {
+    const { payload } = await run("openai");
+    expect(payload.max_completion_tokens).toBe(123);
+    expect(payload.max_tokens).toBeUndefined();
+  });
+  it("lets local servers work without a key", async () => {
+    const { headers } = await run("custom", "");
+    expect(headers.authorization).toBeUndefined();
+  });
+  it("asks for a key or model when missing", async () => {
+    const base = { provider: "groq", model: "m", baseUrl: "https://x/v1" };
+    await expect(streamChat({ settings: { ...base, apiKey: "" }, system: "", content: [], maxTokens: 1 })).rejects.toThrow("API key");
+    await expect(streamChat({ settings: { ...base, apiKey: "k", model: " " }, system: "", content: [], maxTokens: 1 })).rejects.toThrow("model");
+  });
+  it("shows service error messages", async () => {
+    const fetchImpl = (async () => new Response(JSON.stringify({ error: { message: "no such model" } }), { status: 404 })) as any;
+    await expect(streamChat({ settings: { provider: "openai", apiKey: "k", model: "m", baseUrl: "https://x/v1" }, system: "", content: [], maxTokens: 1, fetchImpl })).rejects.toThrow("no such model");
+  });
+  it("lists models and drops non-chat ones", async () => {
+    const fetchImpl = (async (u: string) => {
+      expect(u).toBe("https://x/v1/models");
+      return new Response(JSON.stringify({ data: [{ id: "b-chat" }, { id: "a-chat" }, { id: "whisper-large" }, { id: "text-embedding-3" }] }), { status: 200 });
+    }) as any;
+    expect(await listModels({ provider: "openai", apiKey: "k", model: "", baseUrl: "https://x/v1/" }, fetchImpl)).toEqual(["a-chat", "b-chat"]);
+  });
+  it("keeps old saved settings working", () => {
+    expect(normalizeProvider("api")).toBe("anthropic");
+    expect(normalizeProvider("bridge")).toBe("bridge");
+    expect(normalizeProvider("nonsense")).toBe("anthropic");
   });
 });

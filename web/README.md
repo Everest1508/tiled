@@ -30,3 +30,7 @@ The build is static, so any static host works (GitHub Pages, Netlify, Vercel, Cl
 ## Claude Code mode (no API key)
 
 Settings → Connect Claude → **Claude Code** lets Claude Code on your computer do the work through a local MCP bridge. See [`bridge/README.md`](../bridge/README.md).
+
+## AI services
+
+Settings → Connect an AI service: **Claude**, **OpenAI**, **Groq**, **Gemini**, **OpenRouter**, **Custom / local** (Ollama, LM Studio, any OpenAI-compatible server) or **Claude Code**. Each service remembers its own key and model. Model names change often, so type any id or press **Load models**. Naming tiles needs a model that accepts images; generating maps works with text-only models too.
