@@ -24,7 +24,7 @@ export function BusyBar() {
         <strong>{busy.label}</strong>
         <small>{bridge
             ? busy.chars > 0 ? "Claude Code is working on it…" : "In Claude Code, run /tile-studio (or ask it to call next_job)"
-            : busy.chars > 0 ? `${busy.chars.toLocaleString()} characters received` : "Waiting for Claude…"}</small>
+            : busy.chars > 0 ? `${busy.chars.toLocaleString()} characters received` : "Waiting for the AI…"}</small>
       </div>
       <button className="btn ghost sm" onClick={cancelAi}>Cancel</button>
     </div>

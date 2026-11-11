@@ -45,7 +45,7 @@ async function ask(system: string, content: Parameters<typeof streamChat>[0]["co
 const needNames = () => {
   const cat = buildCatalog(getState().tilesets);
   if (cat.empty) {
-    notify("Name some tiles first. Open a tilesheet and use \"Name with Claude\".", "error");
+    notify("Name some tiles first. Open a tilesheet and use \"Name tiles with AI\".", "error");
     return null;
   }
   return cat;
@@ -66,7 +66,7 @@ export async function nameTilesetWithClaude(tsId: string, hint: string) {
     });
     return;
   }
-  await run(`Claude is studying "${ts.name}"…`, async (signal, progress) => {
+  await run(`AI is studying "${ts.name}"…`, async (signal, progress) => {
     const { cols, rows, count } = gridOf(ts);
     const used = getState().tilesets.filter((t) => t.id !== tsId).flatMap((t) => Object.values(t.names));
     const image = await annotatedTilesetImage(ts);
@@ -84,10 +84,10 @@ export async function nameSelectionWithClaude(tsId: string, c0: number, r0: numb
   const ts = getState().tilesets.find((t) => t.id === tsId);
   if (!ts) return undefined;
   if (usingBridge()) {
-    notify("Suggesting a name for a selection needs the API key mode. Type a name, or use Name with Claude for the whole sheet.", "info");
+    notify("Suggesting a name for a selection needs the API key mode. Type a name, or use Name tiles with AI for the whole sheet.", "info");
     return undefined;
   }
-  return run("Claude is looking at your selection…", async (signal, progress) => {
+  return run("AI is looking at your selection…", async (signal, progress) => {
     const image = await selectionImage(ts, c0, r0, c1, r1);
     const text = await ask(
       "You name pieces of 2D game tilesets. Reply with JSON only.",
@@ -105,7 +105,7 @@ export async function generateMapWithClaude(description: string, w: number, h: n
     await runBridgeJob({ type: "generate_map", label: `Claude Code is designing a ${w} × ${h} map…`, prompt: `Create a map with set_map using width ${w} and height ${h}.\n\n${generationPrompt(cat, description, w, h)}` });
     return;
   }
-  await run(`Claude is designing a ${w} × ${h} map…`, async (signal, progress) => {
+  await run(`AI is designing a ${w} × ${h} map…`, async (signal, progress) => {
     const maxTokens = Math.min(32000, 3000 + w * h * 5);
     const text = await ask(SYSTEM_MAP, [textBlock(generationPrompt(cat, description, w, h))], maxTokens, signal, progress);
     applyGeneratedMap(extractJson(text), w, h);
@@ -120,7 +120,7 @@ export async function generateVariantsWithClaude(description: string, count: num
     await runBridgeJob({ type: "area_options", label: `Claude Code is designing ${count} options…`, prompt: `Provide exactly ${count} variants with set_area_options.\n\n${variantsPrompt(cat, map, region, description, count)}` });
     return;
   }
-  await run(`Claude is designing ${count} options…`, async (signal, progress) => {
+  await run(`AI is designing ${count} options…`, async (signal, progress) => {
     const maxTokens = Math.min(32000, 3000 + count * region.w * region.h * 4 * Math.max(1, map.layers.length));
     const text = await ask(SYSTEM_MAP, [textBlock(variantsPrompt(cat, map, region, description, count))], maxTokens, signal, progress);
     applyVariantsReply(extractJson(text));
@@ -135,7 +135,7 @@ export async function refineMapWithClaude(instruction: string) {
     await runBridgeJob({ type: "refine_map", label: "Claude Code is changing the map…", prompt: `Call set_map with width ${map.w} and height ${map.h} and the COMPLETE updated map.\n\n${refinePrompt(cat, map, instruction)}` });
     return;
   }
-  await run("Claude is changing the map…", async (signal, progress) => {
+  await run("AI is changing the map…", async (signal, progress) => {
     const maxTokens = Math.min(32000, 3000 + map.w * map.h * 5);
     const text = await ask(SYSTEM_MAP, [textBlock(refinePrompt(cat, map, instruction))], maxTokens, signal, progress);
     applyRefinedMap(extractJson(text));

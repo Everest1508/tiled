@@ -42,12 +42,12 @@ function EmptyMap() {
         <h2>Let's build a map</h2>
         <ol className="steps">
           {step(tilesets.length > 0, 1, "Add one or more tilesheets")}
-          {step(named > 0, 2, "Name the tiles (Claude can do it for you)")}
+          {step(named > 0, 2, "Name the tiles (AI can do it for you)")}
           {step(false, 3, "Describe a map and generate it")}
         </ol>
         <div className="row wrap center">
           <button className="btn primary" onClick={() => setState({ panel: tilesets.length ? "ai" : "sheets", aiTab: "generate" })}>
-            <Icon name="sparkles" size={16} /> {tilesets.length ? "Generate with Claude" : "Add tilesheets"}
+            <Icon name="sparkles" size={16} /> {tilesets.length ? "Generate with AI" : "Add tilesheets"}
           </button>
         </div>
         <div className="blank">

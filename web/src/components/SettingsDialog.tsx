@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { checkBridge } from "../lib/bridge";
 import { listModels, testLLM } from "../lib/llm";
-import { PROVIDERS, providerInfo, ProviderId } from "../lib/providers";
+import { availableProviders, providerInfo, ProviderId } from "../lib/providers";
 import { setProvider, setSettings, setState, useStore } from "../lib/store";
 import Icon from "./Icon";
 
@@ -18,6 +18,7 @@ export default function SettingsDialog() {
 
   const info = providerInfo(settings.provider);
   const viaBridge = info.format === "bridge";
+  const viaHost = info.format === "sample";
   const models = Array.from(new Set([...loaded, ...info.models]));
   const close = () => setState({ settingsOpen: false });
   const pick = (id: ProviderId) => {
@@ -51,24 +52,24 @@ export default function SettingsDialog() {
     }
     setLoadingModels(false);
   };
-  const ready = viaBridge || (info.needsKey ? !!settings.apiKey.trim() : true);
+  const ready = viaBridge || viaHost || (info.needsKey ? !!settings.apiKey.trim() : true);
 
   return (
     <div className="modal-back" onMouseDown={(e) => e.target === e.currentTarget && close()}>
       <div className="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
         <div className="modal-head">
-          <h2 id="settings-title">Connect an AI service</h2>
+          <h2 id="settings-title">{viaHost ? "AI settings" : "Connect an AI service"}</h2>
           <button className="icon-btn" onClick={close} aria-label="Close"><Icon name="close" /></button>
         </div>
 
-        <div className="chips providers" role="radiogroup" aria-label="AI service">
-          {PROVIDERS.map((p) => (
+        {!viaHost && <div className="chips providers" role="radiogroup" aria-label="AI service">
+          {availableProviders().map((p) => (
             <button key={p.id} role="radio" aria-checked={p.id === settings.provider} className={`chip ${p.id === settings.provider ? "on" : ""}`} onClick={() => pick(p.id)}>{p.label}</button>
           ))}
-        </div>
+        </div>}
         <p className="note">{info.note}</p>
 
-        {viaBridge ? (
+        {viaHost ? null : viaBridge ? (
           <>
             <p className="note">
               Use your Claude Code subscription instead of an API key. Claude Code runs on your computer with the tile-studio MCP server and does the work when you press a Claude button here.

@@ -19,11 +19,11 @@ export function cloneMap(m: MapData): MapData {
 export function extractJson(text: string): any {
   const a = text.indexOf("{");
   const b = text.lastIndexOf("}");
-  if (a < 0 || b <= a) throw new Error("Claude's reply did not contain a map. Try again.");
+  if (a < 0 || b <= a) throw new Error("The AI's reply did not contain a map. Try again.");
   try {
     return JSON.parse(text.slice(a, b + 1));
   } catch {
-    throw new Error("Claude's reply was not valid JSON. Try again.");
+    throw new Error("The AI's reply was not valid JSON. Try again.");
   }
 }
 

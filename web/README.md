@@ -34,3 +34,7 @@ Settings → Connect Claude → **Claude Code** lets Claude Code on your compute
 ## AI services
 
 Settings → Connect an AI service: **Claude**, **OpenAI**, **Groq**, **Gemini**, **OpenRouter**, **Custom / local** (Ollama, LM Studio, any OpenAI-compatible server) or **Claude Code**. Each service remembers its own key and model. Model names change often, so type any id or press **Load models**. Naming tiles needs a model that accepts images; generating maps works with text-only models too.
+
+## claude.ai artifact build
+
+`npm run build:artifact` makes one self-contained `dist-artifact/index.html`. Inside a claude.ai artifact the page uses the built-in **claude.ai** service (no key) and the host's save prompt for exports (map files are saved as `.map.json`, which Tiled can open).

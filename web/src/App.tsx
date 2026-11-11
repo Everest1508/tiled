@@ -52,7 +52,7 @@ export default function App() {
   const tabs: { id: Panel; label: string; icon: string }[] = [
     { id: "sheets", label: "Tilesheets", icon: "tiles" },
     { id: "map", label: "Map", icon: "map" },
-    { id: "ai", label: "Claude", icon: "sparkles" },
+    { id: "ai", label: "AI", icon: "sparkles" },
   ];
 
   return (
@@ -66,8 +66,8 @@ export default function App() {
         <section className="panel map" aria-label="Map">
           <MapView />
         </section>
-        <section className="panel ai" aria-label="Claude">
-          <div className="panel-title"><Icon name="sparkles" size={16} /> Claude</div>
+        <section className="panel ai" aria-label="AI">
+          <div className="panel-title"><Icon name="sparkles" size={16} /> AI</div>
           <AiPanel />
         </section>
       </main>

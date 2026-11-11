@@ -240,7 +240,7 @@ function Detail({ ts }: { ts: Tileset }) {
       const comp: Comp = { name, cols: n.c1 - n.c0 + 1, rows: n.r1 - n.r0 + 1, ids };
       if (!name.trim()) return notify("Type a name for this object first.", "error");
       addComp(ts.id, comp);
-      notify(`Saved object "${name.trim().toLowerCase().replace(/\s+/g, "_")}". Claude can now place it as one piece.`, "ok");
+      notify(`Saved object "${name.trim().toLowerCase().replace(/\s+/g, "_")}". AI can now place it as one piece.`, "ok");
     }
   };
 
@@ -289,7 +289,7 @@ function Detail({ ts }: { ts: Tileset }) {
               </div>
               <div className="input-row">
                 <input value={name} onChange={(e) => setName(e.target.value)} placeholder={single ? "e.g. grass, road_turn_ne" : "e.g. house, oak_tree"} onKeyDown={(e) => e.key === "Enter" && save()} spellCheck={false} />
-                <button className="btn ghost" onClick={suggest} disabled={busy} title="Let Claude look at the selection and suggest a name"><Icon name="sparkles" size={16} /> Suggest</button>
+                <button className="btn ghost" onClick={suggest} disabled={busy} title="Let the AI look at the selection and suggest a name"><Icon name="sparkles" size={16} /> Suggest</button>
               </div>
               <div className="row wrap">
                 <button className="btn primary" onClick={save}>{single ? "Save name" : "Save as object"}</button>
@@ -301,11 +301,11 @@ function Detail({ ts }: { ts: Tileset }) {
       </div>
 
       <div className="card ai-card">
-        <h3><Icon name="sparkles" size={16} /> Name everything with Claude</h3>
-        <p className="hint">Claude looks at the whole sheet, names every tile and finds multi-tile objects like houses and trees. You can fix any name afterwards.</p>
+        <h3><Icon name="sparkles" size={16} /> Name everything with AI</h3>
+        <p className="hint">The AI looks at the whole sheet, names every tile and finds multi-tile objects like houses and trees. You can fix any name afterwards.</p>
         <input value={hint} onChange={(e) => setHint(e.target.value)} placeholder="Optional hint: top-down village, 3×3 houses, road turns…" />
         <button className="btn primary wide" disabled={busy} onClick={() => nameTilesetWithClaude(ts.id, hint)}>
-          <Icon name="wand" size={16} /> Name tiles with Claude
+          <Icon name="wand" size={16} /> Name tiles with AI
         </button>
       </div>
 

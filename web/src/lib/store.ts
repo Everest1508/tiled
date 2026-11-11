@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { ClaudeSettings } from "./claude";
-import { normalizeProvider, providerInfo, ProviderId } from "./providers";
+import { inArtifact, normalizeProvider, providerInfo, ProviderId } from "./providers";
 import { cleanComps, normName } from "./catalog";
 import { fromProject, toProject, toTmj, tilesetFileNames } from "./exporters";
 import { loadImage, readFileAsDataUrl } from "./images";
@@ -73,7 +73,7 @@ const THEME_KEY = "tms.theme";
 
 function loadSettings(): Settings {
   const d = providerInfo("anthropic");
-  const base: Settings = { apiKey: "", model: d.model, baseUrl: d.baseUrl, remember: false, provider: "anthropic", bridgeUrl: "http://127.0.0.1:8787", profiles: {} };
+  const base: Settings = { apiKey: "", model: d.model, baseUrl: d.baseUrl, remember: false, provider: inArtifact() ? "sample" : "anthropic", bridgeUrl: "http://127.0.0.1:8787", profiles: {} };
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (raw) {
@@ -142,6 +142,7 @@ export function subscribe(fn: () => void) {
 export function isConnected(s: State) {
   const p = s.settings.provider;
   if (p === "bridge") return s.bridge === "connected";
+  if (p === "sample") return true;
   return providerInfo(p).needsKey ? !!s.settings.apiKey.trim() : !!s.settings.model.trim() && !!s.settings.baseUrl.trim();
 }
 
@@ -240,7 +241,7 @@ export async function addTilesetFiles(files: File[]) {
     }
   }
   setState({ tilesets, nextSlot, activeTilesetId: lastId ?? state.activeTilesetId, panel: "sheets" });
-  if (lastId) notify(`Added ${files.length > 1 ? "tilesheets" : "tilesheet"}. Check the tile size, then let Claude name the tiles.`, "ok");
+  if (lastId) notify(`Added ${files.length > 1 ? "tilesheets" : "tilesheet"}. Check the tile size, then let AI name the tiles.`, "ok");
 }
 
 export function updateTileset(id: string, patch: Partial<Tileset>) {
@@ -469,7 +470,17 @@ export function applySelectedVariant() {
 
 // ---- Files ----------------------------------------------------------------
 
-function download(blob: Blob, name: string) {
+async function download(blob: Blob, name: string) {
+  // Artifact pages cannot start downloads themselves; the host offers a save prompt instead.
+  const host = inArtifact() ? await (window as any).claude.use("downloads").catch(() => null) : null;
+  if (host) {
+    try {
+      await host.save({ filename: name, data: blob });
+    } catch (e: any) {
+      if (e?.code !== "declined") notify(e?.message || "Could not save the file here.", "error");
+    }
+    return;
+  }
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -482,21 +493,21 @@ function download(blob: Blob, name: string) {
 
 const fileBase = () => normName(state.projectName).replace(/_/g, "-") || "map";
 
-export function exportTmj() {
+export async function exportTmj() {
   if (!state.map) return;
   const json = JSON.stringify(toTmj(state.map, state.tilesets), null, 1);
-  download(new Blob([json], { type: "application/json" }), `${fileBase()}.tmj`);
+  await download(new Blob([json], { type: "application/json" }), inArtifact() ? `${fileBase()}.map.json` : `${fileBase()}.tmj`);
   const files = tilesetFileNames(state.tilesets);
-  notify(`Exported. Keep ${files.join(", ")} next to the .tmj when you open it in Tiled.`, "ok");
+  notify(`Exported. Keep ${files.join(", ")} next to the map file when you open it in Tiled.`, "ok");
 }
 
-export function exportTilesetImages() {
+export async function exportTilesetImages() {
   const files = tilesetFileNames(state.tilesets);
-  state.tilesets.forEach((t, i) => {
+  for (const [i, t] of state.tilesets.entries()) {
     const bin = atob(t.src.split(",")[1] ?? "");
     const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
-    download(new Blob([bytes], { type: "image/png" }), files[i]);
-  });
+    await download(new Blob([bytes], { type: "image/png" }), files[i]);
+  }
 }
 
 export function exportPng() {
@@ -507,9 +518,9 @@ export function exportPng() {
   cv.toBlob((b) => b && download(b, `${fileBase()}.png`), "image/png");
 }
 
-export function saveProject() {
+export async function saveProject() {
   const json = JSON.stringify(toProject(state.projectName, state.nextSlot, state.tilesets, state.map));
-  download(new Blob([json], { type: "application/json" }), `${fileBase()}.tilemapstudio.json`);
+  await download(new Blob([json], { type: "application/json" }), `${fileBase()}.tilemapstudio.json`);
 }
 
 export async function openProject(file: File) {

@@ -173,7 +173,7 @@ function Refine() {
   const busy = useStore((s) => !!s.busy);
   const map = useStore((s) => s.map);
   const [text, setText] = useState("");
-  if (!map) return <p className="hint">Create or generate a map first, then ask Claude to change it.</p>;
+  if (!map) return <p className="hint">Create or generate a map first, then ask AI to change it.</p>;
   return (
     <>
       <Status />

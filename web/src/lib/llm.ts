@@ -82,8 +82,47 @@ export async function streamOpenAi(opts: StreamOptions): Promise<StreamResult> {
   return { text, stopReason };
 }
 
+/** Asks Claude through the claude.ai host (artifact pages). No key, the viewer's own account. */
+async function streamSample(opts: StreamOptions): Promise<StreamResult> {
+  const { system, content, signal, onProgress } = opts;
+  const sample = await (window as any).claude?.use?.("sample");
+  if (!sample) throw new ClaudeError("Claude is not available in this view. Open the artifact in claude.ai.");
+  const images: Blob[] = [];
+  for (const b of content) {
+    if (b.type !== "image") continue;
+    const bin = atob(b.source.data);
+    images.push(new Blob([Uint8Array.from(bin, (c) => c.charCodeAt(0))], { type: b.source.media_type }));
+  }
+  if (images.length) {
+    let ok = false;
+    try {
+      ok = !!(await sample.limits?.())?.images;
+    } catch {
+      /* treated as unsupported */
+    }
+    if (!ok) throw new ClaudeError("This view cannot send images to Claude. Open the artifact in claude.ai to name tiles.");
+  }
+  const text = content.filter((b) => b.type === "text").map((b) => (b as { text: string }).text).join("\n\n");
+  try {
+    const r = await sample(`${system}\n\n${text}`, {
+      signal,
+      cache: false,
+      modelTier: "default",
+      ...(images.length ? { images } : {}),
+      onText: ({ text: t }: { text: string }) => onProgress?.(t.length),
+    });
+    return { text: r.text, stopReason: r.truncated ? "max_tokens" : "end_turn" };
+  } catch (e: any) {
+    if (e?.name === "AbortError" || signal?.aborted) throw Object.assign(new Error("Cancelled"), { name: "AbortError" });
+    if (e?.code === "not_granted") throw new ClaudeError("Permission to use Claude was not granted. Try again and allow it.");
+    if (e?.code === "rate_limited") throw new ClaudeError("Claude is busy right now. Wait a moment and try again.");
+    throw new ClaudeError(e?.message || "Claude could not answer.");
+  }
+}
+
 export function streamChat(opts: StreamOptions): Promise<StreamResult> {
   const p = opts.settings.provider;
+  if (p === "sample") return streamSample(opts);
   return !p || p === "anthropic" ? streamMessage(opts) : streamOpenAi(opts);
 }
 

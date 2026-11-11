@@ -1,11 +1,11 @@
 // Which AI services the studio can talk to, and their defaults.
-export type ProviderId = "anthropic" | "openai" | "groq" | "gemini" | "openrouter" | "custom" | "bridge";
+export type ProviderId = "sample" | "anthropic" | "openai" | "groq" | "gemini" | "openrouter" | "custom" | "bridge";
 
 export interface ProviderInfo {
   id: ProviderId;
   label: string;
   /** "anthropic" = Messages API; "openai" = Chat Completions (also spoken by Groq, Gemini, OpenRouter, Ollama…). */
-  format: "anthropic" | "openai" | "bridge";
+  format: "anthropic" | "openai" | "bridge" | "sample";
   baseUrl: string;
   model: string;
   /** Suggestions only. Model names change often, so any id can be typed and "Load models" asks the service. */
@@ -19,6 +19,11 @@ export interface ProviderInfo {
 }
 
 export const PROVIDERS: ProviderInfo[] = [
+  {
+    id: "sample", label: "claude.ai", format: "sample", baseUrl: "", model: "", models: [],
+    keyHint: "", needsKey: false, tokenParam: "max_tokens",
+    note: "Uses your claude.ai account. No API key needed. Claude asks for permission the first time.",
+  },
   {
     id: "anthropic", label: "Claude", format: "anthropic", baseUrl: "https://api.anthropic.com", model: "claude-sonnet-5-5",
     models: ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5"],
@@ -61,7 +66,13 @@ export const PROVIDERS: ProviderInfo[] = [
   },
 ];
 
+/** True when the page runs as a claude.ai artifact, where the host offers Claude without a key. */
+export const inArtifact = () => typeof window !== "undefined" && typeof (window as any).claude?.use === "function";
+
+/** Services the user can pick here. In an artifact only claude.ai works (other hosts are blocked). */
+export const availableProviders = () => PROVIDERS.filter((p) => (inArtifact() ? p.id === "sample" : p.id !== "sample"));
+
 export const providerInfo = (id: string): ProviderInfo => PROVIDERS.find((p) => p.id === id) ?? PROVIDERS[0];
 
 /** Older saved settings used "api" for Claude. */
-export const normalizeProvider = (id: unknown): ProviderId => (id === "api" ? "anthropic" : PROVIDERS.some((p) => p.id === id) ? (id as ProviderId) : "anthropic");
+export const normalizeProvider = (id: unknown): ProviderId => (inArtifact() ? "sample" : id === "api" ? "anthropic" : id === "sample" ? "anthropic" : PROVIDERS.some((p) => p.id === id) ? (id as ProviderId) : "anthropic");
