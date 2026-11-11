@@ -16,6 +16,8 @@ export interface ProviderInfo {
   /** OpenAI's newer models reject max_tokens; everyone else still expects it. */
   tokenParam: "max_tokens" | "max_completion_tokens";
   note: string;
+  /** Old default ids that should be swapped for the current default when found in saved settings. */
+  retired?: string[];
 }
 
 export const PROVIDERS: ProviderInfo[] = [
@@ -37,10 +39,11 @@ export const PROVIDERS: ProviderInfo[] = [
     note: "Pick a model that accepts images to name tiles.",
   },
   {
-    id: "groq", label: "Groq", format: "openai", baseUrl: "https://api.groq.com/openai/v1", model: "meta-llama/llama-4-scout-17b-16e-instruct",
-    models: ["meta-llama/llama-4-scout-17b-16e-instruct", "meta-llama/llama-4-maverick-17b-128e-instruct", "llama-3.3-70b-versatile"],
+    id: "groq", label: "Groq", format: "openai", baseUrl: "https://api.groq.com/openai/v1", model: "qwen/qwen3.8-27b",
+    models: ["qwen/qwen3.8-27b", "llama-3.3-70b-versatile"],
+    retired: ["meta-llama/llama-4-scout-17b-16e-instruct", "meta-llama/llama-4-maverick-17b-128e-instruct"],
     keyUrl: "https://console.groq.com/keys", keyHint: "gsk_…", needsKey: true, tokenParam: "max_tokens",
-    note: "Very fast. Naming tiles needs a vision model (Llama 4). Text-only models can still generate maps.",
+    note: "Very fast. Naming tiles needs a vision model such as Qwen3.8. Text-only models (Llama 3.3) can still generate maps.",
   },
   {
     id: "gemini", label: "Gemini", format: "openai", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-3.8-flash",

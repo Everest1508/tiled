@@ -3,11 +3,12 @@ import { buildCatalog } from "../lib/catalog";
 import { drawMap, drawTileGid } from "../lib/render";
 import {
   addLayer, beginStroke, endStroke, moveLayer, newBlankMap, paintAt, removeLayer, renameLayer, setActiveLayer, setRegion, setState,
-  Tool, toggleLayer, useStore,
+  Tool, toggleLayer, useStore, getState, brushFromTile,
 } from "../lib/store";
 import { clampRegion } from "../lib/mapops";
 import { gidLocal, gidSlot, Rect } from "../lib/types";
 import Icon from "./Icon";
+import Palette from "./Palette";
 import TileThumb from "./TileThumb";
 
 const MIN_SCALE = 3;
@@ -51,11 +52,18 @@ function EmptyMap() {
           </button>
         </div>
         <div className="blank">
-          <span>or start blank</span>
+          <span>Paint by hand:</span>
           <input type="number" min={4} max={96} value={w} onChange={(e) => setW(Math.max(4, Math.min(96, Number(e.target.value) || 4)))} aria-label="Width" />
           <span>×</span>
           <input type="number" min={4} max={96} value={h} onChange={(e) => setH(Math.max(4, Math.min(96, Number(e.target.value) || 4)))} aria-label="Height" />
-          <button className="btn ghost" onClick={() => newBlankMap(w, h)}>Create</button>
+          <button className="btn primary" onClick={() => {
+            newBlankMap(w, h);
+            const ts = tilesets[0];
+            if (ts && !getState().brush) {
+              const first = Object.keys(ts.names).map(Number).sort((a, b) => a - b)[0] ?? 0;
+              setState({ brush: brushFromTile(ts, first), tool: "paint" });
+            }
+          }}>Create blank map</button>
         </div>
       </div>
     </div>
@@ -366,6 +374,7 @@ export default function MapView() {
             <span className="grow" />
             <span className="dim">{map.w} × {map.h} · {zoomPct}px · {info || "—"}</span>
           </div>
+          <Palette />
           <Layers />
         </>
       )}

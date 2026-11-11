@@ -81,6 +81,9 @@ function loadSettings(): Settings {
       const merged: Settings = { ...base, ...saved, provider: normalizeProvider(saved.provider), profiles: saved.profiles ?? {} };
       // Settings saved before multiple providers existed belong to Claude.
       if (!saved.profiles && merged.provider === "anthropic" && !merged.baseUrl) merged.baseUrl = d.baseUrl;
+      const info = providerInfo(merged.provider);
+      if (info.retired?.includes(merged.model)) merged.model = info.model;
+      for (const [id, p] of Object.entries(merged.profiles)) if (p && providerInfo(id).retired?.includes(p.model)) p.model = providerInfo(id).model;
       return merged;
     }
   } catch {
