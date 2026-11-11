@@ -1,0 +1,136 @@
+import { describe, expect, it } from "vitest";
+import { buildCatalog, cleanComps, generationPrompt, normName, variantsPrompt } from "./catalog";
+import { streamMessage, parseSse, imageBlock } from "./claude";
+import { toTmj, toProject, fromProject } from "./exporters";
+import { applyVariant, extractJson, fillLayers, newMap, previewCell } from "./mapops";
+import { gid, Tileset } from "./types";
+
+const ts = (slot: number, name: string, names: Record<number, string>, comps: any[] = []): Tileset => ({
+  id: "t" + slot, slot, name, src: "data:image/png;base64,AAAA", width: 64, height: 32, tw: 16, th: 16,
+  margin: 0, spacing: 0, names, comps,
+});
+
+const sets = [
+  ts(0, "Terrain", { 0: "grass", 1: "water", 2: "grass" /* duplicate */ }),
+  ts(1, "Town", { 0: "roof", 5: "wall" }, [{ name: "House", cols: 2, rows: 1, ids: [0, 5] }]),
+];
+
+describe("catalog", () => {
+  const cat = buildCatalog(sets);
+  it("assigns one symbol per unique name across tilesheets", () => {
+    expect(cat.entries.map((e) => e.name)).toEqual(["grass", "water", "roof", "wall"]);
+    expect(cat.symToGid["c"]).toBe(gid(1, 0));
+  });
+  it("exposes composites with global ids", () => {
+    expect(cat.comps["house"].gids).toEqual([gid(1, 0), gid(1, 5)]);
+    expect(cat.text).toContain("house: 2x1 tiles");
+  });
+  it("normalises names", () => {
+    expect(normName("  Road Turn-NE! ")).toBe("road_turn_ne");
+  });
+  it("validates composites from Claude", () => {
+    expect(cleanComps([{ name: "x", cols: 2, rows: 1, ids: [0, 99] }, { name: "ok", cols: 1, rows: 1, ids: [3] }], 8)).toHaveLength(1);
+  });
+  it("builds prompts", () => {
+    expect(generationPrompt(cat, "a village", 8, 4)).toContain("8 columns x 4 rows");
+  });
+});
+
+describe("map building", () => {
+  const cat = buildCatalog(sets);
+  it("fills layers and stamps and warns about bad data", () => {
+    const warnings: string[] = [];
+    const reply = {
+      layers: [{ name: "ground", rows: ["aabb", "abZb"] }],
+      stamps: [{ layer: "objects", composite: "house", x: 2, y: 1 }, { layer: "objects", composite: "nope", x: 0, y: 0 }],
+    };
+    const map = fillLayers(newMap(4, 2), reply, cat, warnings);
+    expect(map.layers.map((l) => l.name)).toEqual(["ground", "objects"]);
+    expect(map.layers[0].cells[0]).toBe(gid(0, 0));
+    expect(map.layers[0].cells[6]).toBe(0); // unknown symbol Z left empty
+    expect(map.layers[1].cells[1 * 4 + 2]).toBe(gid(1, 0));
+    expect(map.layers[1].cells[1 * 4 + 3]).toBe(gid(1, 5));
+    expect(warnings.length).toBe(2);
+  });
+  it("extracts JSON from fenced replies", () => {
+    expect(extractJson('Here:\n```json\n{"a":1}\n```')).toEqual({ a: 1 });
+    expect(() => extractJson("nothing")).toThrow();
+  });
+  it("applies a variant only inside the region and previews it", () => {
+    const map = fillLayers(newMap(4, 4), { layers: [{ name: "ground", rows: ["aaaa", "aaaa", "aaaa", "aaaa"] }] }, cat);
+    const variant = { label: "v", map: fillLayers(newMap(2, 2), { layers: [{ name: "ground", rows: ["bb", "bb"] }] }, cat) };
+    const region = { x: 1, y: 1, w: 2, h: 2 };
+    const { map: out, applied } = applyVariant(map, variant, region);
+    expect(applied).toBe(1);
+    expect(out.layers[0].cells[0]).toBe(gid(0, 0));
+    expect(out.layers[0].cells[1 * 4 + 1]).toBe(gid(0, 1));
+    expect(map.layers[0].cells[1 * 4 + 1]).toBe(gid(0, 0)); // original untouched
+    expect(previewCell(map, 0, 1, 1, { variant, region })).toBe(gid(0, 1));
+    expect(previewCell(map, 0, 0, 0, { variant, region })).toBe(gid(0, 0));
+  });
+  it("builds a region prompt with context", () => {
+    const map = fillLayers(newMap(6, 6), { layers: [{ name: "ground", rows: Array(6).fill("aaaaaa") }] }, cat);
+    const p = variantsPrompt(cat, map, { x: 2, y: 2, w: 2, h: 2 }, "market", 3);
+    expect(p).toContain("REGION x=2 y=2 width=2 height=2");
+    expect(p).toContain('LAYER "ground"');
+    expect(p).toContain("WHAT I WANT IN THE REGION: market");
+  });
+});
+
+describe("export", () => {
+  const cat = buildCatalog(sets);
+  const map = fillLayers(newMap(2, 1), { layers: [{ name: "g", rows: ["ac"] }] }, cat);
+  it("writes tmj with per-tileset firstgid", () => {
+    const tmj = toTmj(map, sets);
+    expect(tmj.tilesets[0].firstgid).toBe(1);
+    expect(tmj.tilesets[1].firstgid).toBe(1 + 8);
+    expect(tmj.layers[0].data).toEqual([1, 9]);
+    expect(tmj.tilesets[1].tiles).toContainEqual({ id: 5, type: "wall" });
+  });
+  it("round-trips a project", () => {
+    const back = fromProject(JSON.parse(JSON.stringify(toProject("p", 2, sets, map))));
+    expect(back.tilesets).toHaveLength(2);
+    expect(Array.from(back.map!.layers[0].cells)).toEqual(Array.from(map.layers[0].cells));
+  });
+});
+
+const sse = (chunks: string[]) =>
+  new ReadableStream<Uint8Array>({
+    start(c) {
+      const enc = new TextEncoder();
+      chunks.forEach((x) => c.enqueue(enc.encode(x)));
+      c.close();
+    },
+  });
+
+describe("claude client", () => {
+  it("parses SSE split across chunks", async () => {
+    const out: string[] = [];
+    for await (const e of parseSse(sse(["event: a\ndata: {\"x\"", ":1}\n\nevent: b\ndata: 2\n\n"]))) out.push(e.event + e.data);
+    expect(out).toEqual(['a{"x":1}', "b2"]);
+  });
+  it("streams text and reports the stop reason", async () => {
+    const body = sse([
+      'event: content_block_delta\ndata: {"delta":{"type":"text_delta","text":"{\\"a\\""}}\n\n',
+      'event: content_block_delta\ndata: {"delta":{"type":"text_delta","text":":1}"}}\n\n',
+      'event: message_delta\ndata: {"delta":{"stop_reason":"end_turn"}}\n\n',
+    ]);
+    let seenHeaders: any;
+    const fetchImpl = (async (_u: string, init: any) => {
+      seenHeaders = init.headers;
+      return new Response(body, { status: 200 });
+    }) as any;
+    const r = await streamMessage({ settings: { apiKey: " k ", model: "m", baseUrl: "" }, system: "s", content: [], maxTokens: 10, fetchImpl });
+    expect(r).toEqual({ text: '{"a":1}', stopReason: "end_turn" });
+    expect(seenHeaders["x-api-key"]).toBe("k");
+    expect(seenHeaders["anthropic-dangerous-direct-browser-access"]).toBe("true");
+  });
+  it("surfaces API errors and missing keys", async () => {
+    const fetchImpl = (async () => new Response(JSON.stringify({ error: { message: "bad key" } }), { status: 401 })) as any;
+    await expect(streamMessage({ settings: { apiKey: "k", model: "m", baseUrl: "" }, system: "", content: [], maxTokens: 1, fetchImpl })).rejects.toThrow("bad key");
+    await expect(streamMessage({ settings: { apiKey: "", model: "m", baseUrl: "" }, system: "", content: [], maxTokens: 1 })).rejects.toThrow("API key");
+  });
+  it("converts data URLs to image blocks", () => {
+    expect(imageBlock("data:image/png;base64,QQ==")).toEqual({ type: "image", source: { type: "base64", media_type: "image/png", data: "QQ==" } });
+  });
+});
