@@ -341,11 +341,40 @@ function Detail({ ts }: { ts: Tileset }) {
   );
 }
 
+/** A real file input laid invisibly over its parent, so a tap lands on the input itself (most reliable in embedded webviews). */
+function FilePicker({ label = "Choose tilesheet images" }: { label?: string }) {
+  return (
+    <input
+      type="file"
+      accept="image/*,.png,.jpg,.jpeg,.gif,.webp"
+      multiple
+      className="file-cover"
+      aria-label={label}
+      title={label}
+      onChange={(e) => {
+        const list = Array.from(e.target.files ?? []).filter((f) => f.type.startsWith("image/") || /\.(png|jpe?g|gif|webp)$/i.test(f.name));
+        if (list.length) addTilesetFiles(list);
+        e.target.value = "";
+      }}
+    />
+  );
+}
+
 export default function SheetsPanel() {
   const tilesets = useStore((s) => s.tilesets);
   const activeId = useStore((s) => s.activeTilesetId);
   const [over, setOver] = useState(false);
   const active = tilesets.find((t) => t.id === activeId) ?? tilesets[0];
+
+  useEffect(() => {
+    // Pasting an image also adds it, for places where the file picker is unavailable.
+    const onPaste = (e: ClipboardEvent) => {
+      const files = Array.from(e.clipboardData?.files ?? []).filter((f) => f.type.startsWith("image/"));
+      if (files.length && !(e.target as HTMLElement)?.closest?.("input, textarea")) addTilesetFiles(files);
+    };
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+  }, []);
 
   const pick = (files: FileList | File[] | null) => {
     const list = Array.from(files ?? []).filter((f) => f.type.startsWith("image/"));
@@ -359,14 +388,13 @@ export default function SheetsPanel() {
       onDragLeave={() => setOver(false)}
       onDrop={(e) => { e.preventDefault(); setOver(false); pick(e.dataTransfer.files); }}
     >
-      <input id="sheet-file" type="file" accept="image/*" multiple className="file-hidden" onChange={(e) => { pick(e.target.files); e.target.value = ""; }} />
-
       {tilesets.length === 0 ? (
-        <label className="dropzone" htmlFor="sheet-file">
+        <div className="dropzone">
+          <FilePicker />
           <span className="dz-icon"><Icon name="upload" size={28} /></span>
           <strong>Add your tilesheets</strong>
           <span>Drop PNG images here or tap to browse. You can add as many sheets as you like.</span>
-        </label>
+        </div>
       ) : (
         <>
           <div className="sheet-tabs" role="tablist">
@@ -375,7 +403,7 @@ export default function SheetsPanel() {
                 {t.name}
               </button>
             ))}
-            <label className="tab add" htmlFor="sheet-file" aria-label="Add tilesheet"><Icon name="plus" size={16} /></label>
+            <div className="tab add" aria-label="Add tilesheet"><Icon name="plus" size={16} /><FilePicker label="Add tilesheet" /></div>
           </div>
           {active && <Detail ts={active} />}
         </>
