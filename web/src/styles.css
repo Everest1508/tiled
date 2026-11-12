@@ -217,3 +217,48 @@ input.strong { font-weight: 700; }
 .pal-tile span { max-width: 68px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dim); }
 .pal-tile .thumb, .pal-obj .thumb { image-rendering: pixelated; }
 @media (max-width: 700px) { .pal-grid { max-height: 108px; } .pal-tile { min-width: 52px; } }
+
+/* Sheet editor columns: stacked on small screens, three columns on desktop */
+.se-col { display: contents; }
+.sheet-editor { display: contents; }
+.ws-switch { display: none; }
+.dock.nomap { display: none; }
+@media (max-width: 1099px) {
+  .o1 { order: 1; } .o2 { order: 2; } .o3 { order: 3; } .o4 { order: 4; } .o5 { order: 5; } .o6 { order: 6; }
+}
+
+@media (min-width: 1100px) {
+  .ws-switch { display: inline-flex; gap: 2px; padding: 3px; border-radius: 12px; background: var(--panel2); border: 1px solid var(--line); }
+  .ws-switch button { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 14px; border: 0; border-radius: 9px; background: transparent; color: var(--dim); font-weight: 600; }
+  .ws-switch button.on { background: var(--accent-soft); color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+
+  /* Map editor: big canvas with the tile palette docked on its left, AI on the right */
+  .workspace.ws-map { grid-template-columns: minmax(0, 1fr) 360px; }
+  .workspace.ws-map .panel.sheets { display: none; }
+  .map-panel { display: grid; grid-template-columns: 320px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; grid-template-areas: "dock toolbar" "dock canvas" "dock status"; }
+  .map-panel .toolbar { grid-area: toolbar; }
+  .map-panel .canvas-wrap { grid-area: canvas; min-height: 0; }
+  .map-panel .statusbar { grid-area: status; }
+  .dock, .dock.nomap { grid-area: dock; display: flex; flex-direction: column; min-height: 0; overflow: hidden; border-right: 1px solid var(--line); background: var(--panel); }
+  .dock .palette { flex: 1; min-height: 0; border-top: 0; overflow: hidden; }
+  .dock .pal-body { flex: 1; min-height: 0; }
+  .dock .pal-grid { flex: 1; max-height: none; align-content: flex-start; }
+  .dock .layers { flex: none; max-height: 42%; overflow-y: auto; }
+  .map-panel:not(:has(.canvas-wrap)) .dock { grid-row: 1 / 4; }
+
+  /* Tilesheet editor: the sheet gets the whole middle */
+  .workspace.ws-sheets { grid-template-columns: minmax(0, 1fr); }
+  .workspace.ws-sheets .panel.map, .workspace.ws-sheets .panel.ai { display: none; }
+  .workspace.ws-sheets .panel.sheets .panel-body { overflow: hidden; padding: 12px 14px; }
+  .sheet-editor { flex: 1; min-height: 0; display: grid; grid-template-columns: 340px minmax(0, 1fr) 360px; gap: 14px; }
+  .se-col { display: flex; flex-direction: column; gap: 12px; min-height: 0; min-width: 0; overflow-y: auto; scrollbar-width: thin; padding-right: 2px; }
+  .se-col > * { flex-shrink: 0; }
+  .se-center { overflow: hidden; }
+  .se-center .sheet-card { flex: 1; min-height: 0; flex-shrink: 1; }
+  .se-center .sheet-scroll { flex: 1; min-height: 0; max-height: none; }
+  .sheet-tabs { flex-wrap: wrap; }
+}
+@media (min-width: 1100px) {
+  .se-center .sheet-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .se-center .sheet-tools { flex: none; }
+}

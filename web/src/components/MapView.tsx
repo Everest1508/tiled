@@ -374,10 +374,12 @@ export default function MapView() {
             <span className="grow" />
             <span className="dim">{map.w} × {map.h} · {zoomPct}px · {info || "—"}</span>
           </div>
-          <Palette />
-          <Layers />
         </>
       )}
+      <div className={`dock ${map ? "" : "nomap"}`}>
+        <Palette />
+        {map && <Layers />}
+      </div>
     </div>
   );
 }

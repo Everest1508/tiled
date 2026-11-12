@@ -13,6 +13,7 @@ export default function Header() {
   const viaBridge = useStore((s) => s.settings.provider === "bridge");
   const providerName = useStore((s) => providerInfo(s.settings.provider).label);
   const hasSheets = useStore((s) => s.tilesets.length > 0);
+  const workspace = useStore((s) => s.workspace);
   const [menu, setMenu] = useState(false);
   const openRef = useRef<HTMLInputElement>(null);
 
@@ -30,6 +31,11 @@ export default function Header() {
       </div>
 
       <input className="project-name" value={name} onChange={(e) => setState({ projectName: e.target.value })} aria-label="Project name" />
+
+      <div className="ws-switch" role="tablist" aria-label="Editor">
+        <button role="tab" aria-selected={workspace === "map"} className={workspace === "map" ? "on" : ""} onClick={() => setState({ panel: "map", workspace: "map" })}><Icon name="map" size={16} /> Map editor</button>
+        <button role="tab" aria-selected={workspace === "sheets"} className={workspace === "sheets" ? "on" : ""} onClick={() => setState({ panel: "sheets", workspace: "sheets" })}><Icon name="tiles" size={16} /> Tilesheet editor</button>
+      </div>
 
       <div className="header-actions">
         <button className="icon-btn" onClick={undo} disabled={!canUndo} aria-label="Undo" title="Undo"><Icon name="undo" /></button>

@@ -13,6 +13,7 @@ export default function App() {
   const panel = useStore((s) => s.panel);
   const theme = useStore((s) => s.theme);
   const busy = useStore((s) => !!s.busy);
+  const workspace = useStore((s) => s.workspace);
   const provider = useStore((s) => s.settings.provider);
   const bridgeUrl = useStore((s) => s.settings.bridgeUrl);
 
@@ -58,7 +59,7 @@ export default function App() {
   return (
     <div className="app">
       <Header />
-      <main className={`workspace show-${panel}`}>
+      <main className={`workspace ws-${workspace} show-${panel}`}>
         <section className="panel sheets" aria-label="Tilesheets">
           <div className="panel-title"><Icon name="tiles" size={16} /> Tilesheets</div>
           <SheetsPanel />

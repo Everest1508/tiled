@@ -17,23 +17,24 @@ interface Sel {
 
 const norm = (s: Sel) => ({ c0: Math.min(s.c0, s.c1), r0: Math.min(s.r0, s.r1), c1: Math.max(s.c0, s.c1), r1: Math.max(s.r0, s.r1) });
 
-function useWidth(ref: React.RefObject<HTMLElement | null>) {
-  const [w, setW] = useState(300);
+function useSize(ref: React.RefObject<HTMLElement | null>) {
+  const [size, setSize] = useState({ w: 300, h: 0 });
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => setW(el.clientWidth));
+    const read = () => setSize({ w: el.clientWidth, h: el.clientHeight });
+    const ro = new ResizeObserver(read);
     ro.observe(el);
-    setW(el.clientWidth);
+    read();
     return () => ro.disconnect();
   }, [ref]);
-  return w;
+  return size;
 }
 
 function SheetCanvas({ ts, sel, onSel, blockMode }: { ts: Tileset; sel: Sel | null; onSel: (s: Sel | null) => void; blockMode: boolean }) {
   const wrap = useRef<HTMLDivElement>(null);
   const cv = useRef<HTMLCanvasElement>(null);
-  const width = useWidth(wrap);
+  const { w: width, h: height } = useSize(wrap);
   const [zoom, setZoom] = useState<"fit" | number>("fit");
   const [ready, setReady] = useState(!!getImage(ts));
   const drag = useRef<Sel | null>(null);
@@ -44,7 +45,10 @@ function SheetCanvas({ ts, sel, onSel, blockMode }: { ts: Tileset; sel: Sel | nu
     loadImage(ts).then(() => setReady(true)).catch(() => {});
   }, [ts.id, ts.src]);
 
-  const z = zoom === "fit" ? Math.max(0.25, width / ts.width >= 1 ? Math.floor(width / ts.width) : width / ts.width) : zoom;
+  // On desktop the sheet area has a fixed height, so "Fit" fits both ways; on phones only the width.
+  const wide = typeof window !== "undefined" && window.matchMedia("(min-width: 1100px)").matches && height > 120;
+  const fitRatio = Math.min(width / ts.width, wide ? height / ts.height : Infinity);
+  const z = zoom === "fit" ? Math.min(8, Math.max(0.25, Math.floor(fitRatio * 4) / 4)) : zoom;
   const cw = Math.round(ts.width * z);
   const ch = Math.round(ts.height * z);
 
@@ -251,8 +255,9 @@ function Detail({ ts }: { ts: Tileset }) {
   };
 
   return (
-    <>
-      <div className="card">
+    <div className="sheet-editor">
+      <div className="se-col se-left">
+      <div className="card o1">
         <div className="row">
           <input className="grow strong" value={ts.name} onChange={(e) => updateTileset(ts.id, { name: e.target.value })} aria-label="Tilesheet name" />
           <button className="icon-btn danger" aria-label="Remove tilesheet" title="Remove tilesheet" onClick={() => confirm(`Remove "${ts.name}" and the tiles from it used on the map?`) && removeTileset(ts.id)}>
@@ -268,7 +273,34 @@ function Detail({ ts }: { ts: Tileset }) {
         <p className="hint">Tile size must match the grid of your image. The green corners below show which tiles already have a name.</p>
       </div>
 
-      <div className="card">
+      <div className="card ai-card o4">
+        <h3><Icon name="sparkles" size={16} /> Name everything with AI</h3>
+        <p className="hint">The AI looks at the whole sheet, names every tile and finds multi-tile objects like houses and trees. You can fix any name afterwards.</p>
+        <input value={hint} onChange={(e) => setHint(e.target.value)} placeholder="Optional hint: top-down village, 3×3 houses, road turns…" />
+        <button className="btn primary wide" disabled={busy} onClick={() => nameTilesetWithClaude(ts.id, hint)}>
+          <Icon name="wand" size={16} /> Name tiles with AI
+        </button>
+      </div>
+
+      {ts.comps.length > 0 && (
+        <div className="card o5">
+          <h3>Objects <span className="count">{ts.comps.length}</span></h3>
+          <div className="chips">
+            {ts.comps.map((c) => (
+              <span className="obj" key={c.name}>
+                <button className="obj-main" title="Use as brush" onClick={() => { setState({ brush: brushFromComp(ts, c), tool: "paint" }); notify(`Brush: ${c.name}`, "ok"); }}>
+                  {c.name} <small>{c.cols}×{c.rows}</small>
+                </button>
+                <button className="obj-x" aria-label={`Remove ${c.name}`} onClick={() => removeComp(ts.id, c.name)}><Icon name="close" size={14} /></button>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      </div>
+      <div className="se-col se-center">
+      <div className="card o2 sheet-card">
         <div className="row between">
           <h3>Tilesheet</h3>
           <label className="switch" title="Lets you drag to select a block of tiles with your finger">
@@ -277,7 +309,11 @@ function Detail({ ts }: { ts: Tileset }) {
           </label>
         </div>
         <SheetCanvas ts={ts} sel={sel} onSel={setSel} blockMode={blockMode} />
-
+      </div>
+      </div>
+      <div className="se-col se-right">
+      <div className="card o3">
+        <h3>Selected</h3>
         <div className="selbox">
           {!n ? (
             <p className="hint">Tap a tile to name it. Drag over several tiles (a house, a tree) to save them as one object.</p>
@@ -299,33 +335,7 @@ function Detail({ ts }: { ts: Tileset }) {
           )}
         </div>
       </div>
-
-      <div className="card ai-card">
-        <h3><Icon name="sparkles" size={16} /> Name everything with AI</h3>
-        <p className="hint">The AI looks at the whole sheet, names every tile and finds multi-tile objects like houses and trees. You can fix any name afterwards.</p>
-        <input value={hint} onChange={(e) => setHint(e.target.value)} placeholder="Optional hint: top-down village, 3×3 houses, road turns…" />
-        <button className="btn primary wide" disabled={busy} onClick={() => nameTilesetWithClaude(ts.id, hint)}>
-          <Icon name="wand" size={16} /> Name tiles with AI
-        </button>
-      </div>
-
-      {ts.comps.length > 0 && (
-        <div className="card">
-          <h3>Objects <span className="count">{ts.comps.length}</span></h3>
-          <div className="chips">
-            {ts.comps.map((c) => (
-              <span className="obj" key={c.name}>
-                <button className="obj-main" title="Use as brush" onClick={() => { setState({ brush: brushFromComp(ts, c), tool: "paint" }); notify(`Brush: ${c.name}`, "ok"); }}>
-                  {c.name} <small>{c.cols}×{c.rows}</small>
-                </button>
-                <button className="obj-x" aria-label={`Remove ${c.name}`} onClick={() => removeComp(ts.id, c.name)}><Icon name="close" size={14} /></button>
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="card">
+      <div className="card o6">
         <div className="row between">
           <h3>Named tiles <span className="count">{Object.keys(ts.names).length}</span></h3>
           {Object.keys(ts.names).length > 6 && <input className="search" placeholder="Search" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search names" />}
@@ -337,7 +347,8 @@ function Detail({ ts }: { ts: Tileset }) {
           </div>
         )}
       </div>
-    </>
+      </div>
+    </div>
   );
 }
 

@@ -64,6 +64,8 @@ export interface State {
   busy: { label: string; chars: number } | null;
   toast: Toast | null;
   panel: Panel;
+  /** Desktop layout: the map editor or the full-screen tilesheet editor. */
+  workspace: "map" | "sheets";
   aiTab: AiTab;
   theme: "dark" | "light";
 }
@@ -124,6 +126,7 @@ let state: State = {
   busy: null,
   toast: null,
   panel: "sheets",
+  workspace: "sheets",
   aiTab: "generate",
   theme: loadTheme(),
 };
@@ -132,6 +135,8 @@ const listeners = new Set<() => void>();
 export const getState = () => state;
 
 export function setState(patch: Partial<State>) {
+  // Going to a panel also picks the matching desktop layout, unless a layout was named too.
+  if (patch.panel && !patch.workspace) patch = { ...patch, workspace: patch.panel === "sheets" ? "sheets" : "map" };
   state = { ...state, ...patch };
   listeners.forEach((l) => l());
 }
